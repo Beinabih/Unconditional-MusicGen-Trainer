@@ -18,7 +18,7 @@ Input prompts are the same for all the data trained on. The model converges but 
 
 ## 💡 Training
 
-    
+For training you need two datasets for training and evaluation with sound files in `.wav`, `.mp3`, `.flac`, `.ogg`, `.m4a`
 
 ```python
 from train import main
@@ -46,7 +46,7 @@ main("Model Name", cfg, dataset_cfg, 'Wandb Project Name')
 ```
 
 ## 🎼 Generation
-The text prompt is replaced by audio (half of it) previously generated. Therefore, the model can generate new samples that are coherent. `display_audio` merges all samples generated.
+The text prompt is replaced by audio previously generated. Therefore, the model can generate new samples that are coherent. `display_audio` merges all samples generated.
 
 ```python
 from generate_inf import generate_long_seq
@@ -68,3 +68,4 @@ display_audio(out, path="audioSamples.wav")
 ```
 
 Thanks to Chavinlo who already made a [MusicGen Trainer](https://github.com/chavinlo/musicgen_trainer) that helped me develop my code.
+Thanks to [Dadabots](https://dadabots.com/) for the inspiration.

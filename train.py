@@ -56,10 +56,17 @@ def train(
         with torch.no_grad():
             codes, _ = model.compression_model.encode(audio)
 
-        prompt = [model_name] * (codes.shape[0] // 2)
+        if codes.shape[0] == 1:
+            prompt = [model_name]
+        else:
+            prompt = [model_name] * (codes.shape[0] // 2)
 
         attributes, _ = model._prepare_tokens_and_attributes(prompt, None)
         condition_tensors = get_condition_tensor(model, attributes)
+
+        # for batchsize 1
+        if codes.shape[0] == 1:
+            codes = torch.cat([codes, codes], axis=0)
 
         with torch.autocast(device_type="cuda", dtype=torch.float16):
             lm_output = model.lm.compute_predictions(
@@ -104,10 +111,17 @@ def evaluate(model, dataloader, optimizer, criterion, model_name, use_wandb, run
             audio = batch.cuda()
             codes, _ = model.compression_model.encode(audio)
 
-            prompt = [model_name] * (codes.shape[0] // 2)
+            if codes.shape[0] == 1:
+                prompt = [model_name]
+            else:
+                prompt = [model_name] * (codes.shape[0] // 2)
 
             attributes, _ = model._prepare_tokens_and_attributes(prompt, None)
             condition_tensors = get_condition_tensor(model, attributes)
+
+            # for batchsize 1
+            if codes.shape[0] == 1:
+                codes = torch.cat([codes, codes], axis=0)
 
             with torch.autocast(device_type="cuda", dtype=torch.float16):
                 lm_output = model.lm.compute_predictions(
