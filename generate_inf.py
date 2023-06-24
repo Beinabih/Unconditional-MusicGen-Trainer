@@ -4,7 +4,7 @@ from audiocraft.modules.conditioners import ClassifierFreeGuidanceDropout
 
 
 def generate_long_seq(
-    model, num_samples, total_gen_len, use_sampling, temp, top_k, top_p, cfg_coef
+    model, num_samples, total_gen_len, use_sampling=True, temp=1.0, top_k=250, top_p=0.0, cfg_coef=None
 ):
     """Instead of using a text prompt, half the sample length of the previous generation is used as prompt input 
 
