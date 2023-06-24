@@ -3,10 +3,12 @@
 This repository extends the [Audiocraft](https://github.com/facebookresearch/audiocraft) repository with a Trainer Class which trains the finetuned model unconditional.
 Input prompts are the same for all the data trained on. The model converges but old learned sounds will vanish. 
 
+### Features:
+
 * No input prompts
 * Generating long sequences -> longer than 30 seconds 
 
-## Installation
+## 🔨 Installation
 
     
     !pip install 'torch>=2.0' 
@@ -14,40 +16,45 @@ Input prompts are the same for all the data trained on. The model converges but 
     !pip install wandb #optional
     
 
-## Training
+## 💡 Training
 
-    from train import main
+    
 
-    dataset_cfg = dict(
-            dataset_path_train = "train",
-            dataset_path_eval = "eval",
-            batch_size=4,
-            num_examples_train= 1000,
-            num_examples_eval= 200,
-            segment_duration= 30,
-            sample_rate= 32_000,
-            shuffle= True,
-            return_info= False)
+```python
+from train import main
 
-    cfg = dict(
-        learning_rate = 0.0001,
-        epochs = 80,
-        model = "small",
-        seed = (hash("blabliblu") % 2**32 - 1)
-    )
+dataset_cfg = dict(
+        dataset_path_train = "train",
+        dataset_path_eval = "eval",
+        batch_size=4,
+        num_examples_train= 1000,
+        num_examples_eval= 200,
+        segment_duration= 30,
+        sample_rate= 32_000,
+        shuffle= True,
+        return_info= False)
 
-    main("Model Name", cfg, dataset_cfg, 1, 'Wandb Project Name')
+cfg = dict(
+    learning_rate = 0.0001,
+    epochs = 80,
+    model = "small",
+    seed = (hash("blabliblu") % 2**32 - 1),
+    use_wandb = True
+)
 
+main("Model Name", cfg, dataset_cfg, 'Wandb Project Name')
+```
 
-## Generation
-The text prompt is replaced by audio (half of it) previously generated. Therefore, the model can generate new samples that are coherent. 
+## 🎼 Generation
+The text prompt is replaced by audio (half of it) previously generated. Therefore, the model can generate new samples that are coherent. `display_audio` merges all samples generated.
 
-    from generate_inf import generate_long_seq
-    from util import display_audio
+```python
+from generate_inf import generate_long_seq
+from util import display_audio
 
-    out = generate_long_seq(model, 8, 1024, True, 1.0, 250, 0, None)
-    display_audio(out, path="audioSamples.wav")
-
+out = generate_long_seq(model, 8, 1024, True, 1.0, 250, 0, None)
+display_audio(out, path="audioSamples.wav")
+```
 
 ## Citations
 

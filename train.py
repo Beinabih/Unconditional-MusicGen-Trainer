@@ -1,23 +1,22 @@
-import os
-import typing as tp
-import random
-
+from audiocraft.models import MusicGen
 import torch
 import numpy as np
 import torch.nn as nn
-from torch.optim import AdamW
+from torch.optim import AdamW, lr_scheduler
 import torch.nn.functional as F
-
+import typing as tp
+import random
 
 from audiocraft.modules.conditioners import ClassifierFreeGuidanceDropout
-from audiocraft.models import MusicGen
 
+
+import os
 from tqdm.notebook import tqdm
 
 from dataloader import create_dataloaders
 
 
-def count_nans(tensor: torch.Tensor):
+def count_nans(tensor):
     nan_mask = torch.isnan(tensor)
     num_nans = torch.sum(nan_mask).item()
     return num_nans
@@ -50,7 +49,7 @@ def train(
     current_step,
 ):
     model.lm.train()
-    for idx, batch in enumerate(dataloader):
+    for _, batch in enumerate(dataloader):
         optimizer.zero_grad()
 
         audio = batch.cuda()
@@ -89,18 +88,13 @@ def train(
 
         # tqdm.write(f"Epoch: {epoch}/{num_epochs}, Batch: {batch_idx}/{len(dataset)}, Loss: {loss.item()}")
         if use_wandb:
-            run.log(
-                {
-                    "loss train": loss.item(),
-                },
-                step=current_step,
-            )
+            run.log({"loss train": loss.item()}, step=current_step)
         current_step += 1
 
     return current_step
 
 
-def evaluate(model, dataloader, optimizer, criterion, model_name):
+def evaluate(model, dataloader, optimizer, criterion, model_name, use_wandb, run):
     epoch_loss = 0
     model.lm.eval()
     with torch.no_grad():
@@ -135,15 +129,16 @@ def evaluate(model, dataloader, optimizer, criterion, model_name):
             epoch_loss += loss.item()
             assert count_nans(masked_logits) == 0
 
+            # tqdm.write(f"Epoch: {epoch}/{num_epochs}, Batch: {batch_idx}/{len(dataset)}, Loss: {loss.item()}")
+
     return epoch_loss / len(dataloader)
 
 
 def main(
     model_name: str,
-    config: tp.Dict,
-    dataset_cfg: tp.Dict,
-    use_wandb: bool,
-    project_name: str,
+    config,
+    dataset_cfg: dict,
+    project_name,
 ):
     torch.backends.cudnn.deterministic = True
     np.random.seed(config["seed"])
@@ -153,7 +148,7 @@ def main(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     run = None
-    if use_wandb:
+    if config["use_wandb"]:
         import wandb
 
         run = wandb.init(
@@ -162,6 +157,7 @@ def main(
                 "learning_rate": config["learning_rate"],
                 "dataset": model_name,
                 "epochs": config["epochs"],
+                "seed": config["seed"],
             },
         )
 
@@ -176,6 +172,8 @@ def main(
         betas=(0.9, 0.95),
         weight_decay=0.1,
     )
+    # scheduler = lr_scheduler.CosineAnnealingLR(optimizer=optimizer,
+    #                                              verbose=True)
     criterion = nn.CrossEntropyLoss()
 
     save_path = "models/"
@@ -191,26 +189,23 @@ def main(
             criterion,
             model_name,
             scaler,
-            use_wandb,
+            config["use_wandb"],
             run,
-            current_step,
+            current_step
         )
-        valid_loss = evaluate(model, dataloader_eval, optimizer, criterion, model_name)
+        valid_loss = evaluate(
+            model, dataloader_eval, optimizer, criterion, model_name, config["use_wandb"], run
+        )
 
-        if use_wandb:
-            run.log(
-                {
-                    "loss eval": valid_loss,
-                    "epoch": epoch,
-                },
-                step=current_step,
-            )
+        if config["use_wandb"]:
+            run.log({"loss eval": valid_loss}, step=current_step)
 
         if valid_loss < best_loss:
             best_loss = valid_loss
             torch.save(model.lm.state_dict(), f"{save_path}/lm_{model_name}_final.pt")
 
-    torch.save(model.lm.state_dict(), f"{save_path}/lm_{model_name}_end.pt")
+        # scheduler.step()
 
-    if use_wandb:
+    torch.save(model.lm.state_dict(), f"{save_path}/lm_{model_name}_end.pt")
+    if config["use_wandb"]:
         wandb.finish()
