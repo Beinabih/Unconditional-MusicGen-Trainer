@@ -14,6 +14,7 @@ import os
 from tqdm.notebook import tqdm
 
 from dataloader import create_dataloaders
+from model_loader import load_model
 
 
 def count_nans(tensor):
@@ -47,9 +48,10 @@ def train(
     use_wandb,
     run,
     current_step,
+    scheduler
 ):
     model.lm.train()
-    for _, batch in enumerate(dataloader):
+    for i, batch in enumerate(dataloader):
         optimizer.zero_grad()
 
         audio = batch.cuda()
@@ -73,16 +75,16 @@ def train(
                 codes=codes, conditions=[], condition_tensors=condition_tensors
             )
 
-            codes = codes[0]
-            logits = lm_output.logits[0]
-            mask = lm_output.mask[0]
+            codes = codes
+            logits = lm_output.logits
+            mask = lm_output.mask
             codes = F.one_hot(codes, 2048).type(logits.dtype)
             codes = codes.cuda()
             logits = logits.cuda()
             mask = mask.cuda()
-            mask = mask.view(-1)
-            masked_logits = logits.view(-1, 2048)[mask]
-            masked_codes = codes.view(-1, 2048)[mask]
+            mask = mask.reshape(-1)
+            masked_logits = logits.reshape(-1, 2048)[mask]
+            masked_codes = codes.reshape(-1, 2048)[mask]
             loss = criterion(masked_logits, masked_codes)
 
         assert count_nans(masked_logits) == 0
@@ -91,6 +93,8 @@ def train(
         torch.nn.utils.clip_grad_norm_(model.lm.parameters(), 1.0)
 
         scaler.step(optimizer)
+        if scheduler:
+            scheduler.step(current_step / len(dataloader))
         scaler.update()
 
         # tqdm.write(f"Epoch: {epoch}/{num_epochs}, Batch: {batch_idx}/{len(dataset)}, Loss: {loss.item()}")
@@ -128,16 +132,18 @@ def evaluate(model, dataloader, optimizer, criterion, model_name, use_wandb, run
                     codes=codes, conditions=[], condition_tensors=condition_tensors
                 )
 
-                codes = codes[0]
-                logits = lm_output.logits[0]
-                mask = lm_output.mask[0]
+                codes = codes
+                logits = lm_output.logits
+                mask = lm_output.mask
+
+                
                 codes = F.one_hot(codes, 2048).type(logits.dtype)
                 codes = codes.cuda()
                 logits = logits.cuda()
                 mask = mask.cuda()
-                mask = mask.view(-1)
-                masked_logits = logits.view(-1, 2048)[mask]
-                masked_codes = codes.view(-1, 2048)[mask]
+                mask = mask.reshape(-1)
+                masked_logits = logits.reshape(-1, 2048)[mask]
+                masked_codes = codes.reshape(-1, 2048)[mask]
                 loss = criterion(masked_logits, masked_codes)
 
             epoch_loss += loss.item()
@@ -176,7 +182,7 @@ def main(
         )
 
     dataloader_train, dataloader_eval = create_dataloaders(dataset_cfg)
-    model = MusicGen.get_pretrained(config["model"])
+    model = load_model(config, model_name)
     model.lm = model.lm.to(torch.float32)  # important
 
     scaler = torch.cuda.amp.GradScaler()
@@ -186,6 +192,11 @@ def main(
         betas=(0.9, 0.95),
         weight_decay=0.1,
     )
+
+    if config['CosineAnnealing']:
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, config["lr_steps"])
+    else:
+        scheduler = None
     # scheduler = lr_scheduler.CosineAnnealingLR(optimizer=optimizer,
     #                                              verbose=True)
     criterion = nn.CrossEntropyLoss()
@@ -205,7 +216,8 @@ def main(
             scaler,
             config["use_wandb"],
             run,
-            current_step
+            current_step, 
+            scheduler
         )
         valid_loss = evaluate(
             model, dataloader_eval, optimizer, criterion, model_name, config["use_wandb"], run
@@ -217,8 +229,6 @@ def main(
         if valid_loss < best_loss:
             best_loss = valid_loss
             torch.save(model.lm.state_dict(), f"{save_path}/lm_{model_name}_final.pt")
-
-        # scheduler.step()
 
     torch.save(model.lm.state_dict(), f"{save_path}/lm_{model_name}_end.pt")
     if config["use_wandb"]:

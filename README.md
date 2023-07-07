@@ -18,7 +18,8 @@ Input prompts are the same for all the data trained on. The model converges but 
 
 ## 💡 Training
 
-For training you need two datasets for training and evaluation with sound files in `.wav`, `.mp3`, `.flac`, `.ogg`, `.m4a`
+* Supportet Data Types `.wav`, `.mp3`, `.flac`, `.ogg`, `.m4a`.
+* At least 16 Gb VRAM 
 
 ```python
 from train import main
@@ -52,11 +53,15 @@ The text prompt is replaced by audio previously generated. Therefore, the model 
 from generate_inf import generate_long_seq
 from util import display_audio
 
-out = generate_long_seq(model, 8, 1024, True, 1.0, 250, 0, None)
+out = generate_long_seq(model, 8, 1024)
 display_audio(out, path="audioSamples.wav")
 ```
 
-## Citations
+## 💿 Examples
+
+* coming soon
+
+## 📋 Citations
 
 ```
 @article{copet2023simple,

@@ -17,7 +17,7 @@ def create_dataloaders(dataset_cfg:tp.Dict):
         segment_duration=dataset_cfg["segment_duration"],
         num_samples=dataset_cfg["num_examples_train"],
         sample_rate=dataset_cfg["sample_rate"],
-        channels=1,
+        channels=dataset_cfg["channels"],
         shuffle=dataset_cfg["shuffle"],
         return_info=dataset_cfg["return_info"],
     )
@@ -28,7 +28,7 @@ def create_dataloaders(dataset_cfg:tp.Dict):
         segment_duration=dataset_cfg["segment_duration"],
         num_samples=dataset_cfg["num_examples_eval"],
         sample_rate=dataset_cfg["sample_rate"],
-        channels=1,
+        channels=dataset_cfg["channels"],
         shuffle=dataset_cfg["shuffle"],
         return_info=dataset_cfg["return_info"],
     )
