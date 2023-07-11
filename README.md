@@ -7,6 +7,7 @@ Input prompts are the same for all the data trained on. The model converges but 
 
 * No input prompts
 * Generating long sequences -> longer than 30 seconds 
+* Training from scratch (checkout the "full-training" branch, work in progress)
 
 ## 🔨 Installation
 
@@ -44,6 +45,28 @@ cfg = dict(
 
 main("Model Name", cfg, dataset_cfg, 'Wandb Project Name')
 ```
+### Full Training
+
+I made a second branch called "full-training" for training from scratch since the musicgen models are only trained on 1 channel. 
+The model parameters are similar to the "small" musicGen model.
+
+```python
+cfg = dict(
+    learning_rate = 0.000001,
+    epochs = 80,
+    model = None,
+    seed = (hash("blabliblu") % 2**32 - 1),
+    use_wandb = True, 
+    sample_rate = 32000,
+    channels = 2,
+    cross_attention=False,
+    accum_iter = 48,
+    CosineAnnealing=False,
+    lr_steps = 200
+)
+```
+Here i added Gradient accumulation and Cosine Annealing Scheduler with Warmup. 
+Work in progress. The model is currently overfitting 
 
 ## 🎼 Generation
 The text prompt is replaced by audio previously generated. Therefore, the model can generate new samples that are coherent. `display_audio` merges all samples generated.
