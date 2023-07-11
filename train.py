@@ -48,11 +48,12 @@ def train(
     use_wandb,
     run,
     current_step,
-    scheduler
+    scheduler,
+    config
 ):
     model.lm.train()
     for i, batch in enumerate(dataloader):
-        optimizer.zero_grad()
+        
 
         audio = batch.cuda()
         with torch.no_grad():
@@ -63,8 +64,11 @@ def train(
         else:
             prompt = [model_name] * (codes.shape[0] // 2)
 
-        attributes, _ = model._prepare_tokens_and_attributes(prompt, None)
-        condition_tensors = get_condition_tensor(model, attributes)
+        if config["cross_attention"]:
+            attributes, _ = model._prepare_tokens_and_attributes(prompt, None)
+            condition_tensors = get_condition_tensor(model, attributes)
+        else:
+            condition_tensors = None
 
         # for batchsize 1
         if codes.shape[0] == 1:
@@ -89,23 +93,25 @@ def train(
 
         assert count_nans(masked_logits) == 0
         scaler.scale(loss).backward()
-        scaler.unscale_(optimizer)
-        torch.nn.utils.clip_grad_norm_(model.lm.parameters(), 1.0)
 
-        scaler.step(optimizer)
-        if scheduler:
-            scheduler.step(current_step / len(dataloader))
-        scaler.update()
 
-        # tqdm.write(f"Epoch: {epoch}/{num_epochs}, Batch: {batch_idx}/{len(dataset)}, Loss: {loss.item()}")
-        if use_wandb:
-            run.log({"loss train": loss.item()}, step=current_step)
+        if ((i + 1) % config["accum_iter"] == 0) or (i + 1 == len(dataloader)):
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.lm.parameters(), 1.0)
+            scaler.step(optimizer)
+            if scheduler:
+                scheduler.step(current_step / len(dataloader))
+            scaler.update()
+            optimizer.zero_grad()
+            if use_wandb:
+                run.log({"loss train": loss.item()}, step=current_step)
+                
         current_step += 1
 
     return current_step
 
 
-def evaluate(model, dataloader, optimizer, criterion, model_name, use_wandb, run):
+def evaluate(model, dataloader, optimizer, criterion, model_name, use_wandb, run, config):
     epoch_loss = 0
     model.lm.eval()
     with torch.no_grad():
@@ -120,8 +126,14 @@ def evaluate(model, dataloader, optimizer, criterion, model_name, use_wandb, run
             else:
                 prompt = [model_name] * (codes.shape[0] // 2)
 
-            attributes, _ = model._prepare_tokens_and_attributes(prompt, None)
-            condition_tensors = get_condition_tensor(model, attributes)
+            # attributes, _ = model._prepare_tokens_and_attributes(prompt, None)
+            # condition_tensors = get_condition_tensor(model, attributes)
+
+            if config["cross_attention"]:
+                attributes, _ = model._prepare_tokens_and_attributes(prompt, None)
+                condition_tensors = get_condition_tensor(model, attributes)
+            else:
+                condition_tensors = None
 
             # for batchsize 1
             if codes.shape[0] == 1:
@@ -217,10 +229,11 @@ def main(
             config["use_wandb"],
             run,
             current_step, 
-            scheduler
+            scheduler, 
+            config
         )
         valid_loss = evaluate(
-            model, dataloader_eval, optimizer, criterion, model_name, config["use_wandb"], run
+            model, dataloader_eval, optimizer, criterion, model_name, config["use_wandb"], run, config
         )
 
         if config["use_wandb"]:
